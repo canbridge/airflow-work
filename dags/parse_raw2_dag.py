@@ -38,7 +38,7 @@ while decrement:
         maxInt = int(maxInt/10)
         decrement = True
 
-serverAddress = "10.0.0.115"
+serverAddress = config.PARSER_OPTIONS["address"]
 
 dag = DAG("parse_raw2_resume",
           default_args={"owner": "ubuntu",
@@ -85,7 +85,6 @@ def itera_parse(fname):
     with open(fname, 'r') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
-            print("count:", count)
             try:
                 content = zlib.decompress(base64.b64decode(row[1]))
                 content = base64.b64encode(content).decode('ascii')
@@ -95,10 +94,11 @@ def itera_parse(fname):
                 if resume:
                     change_key(resume)
                     resume['fname'] = fname
+                    resume['line_index'] = count
                     coll.insert_one(resume)
             except Exception as e:
                 error_count += 1
-                print("ERROR", "FNAME:", fname, "ERROR:", e)
+                print("ERROR", "FNAME:", fname, "ERROR:", e, "LINE_INDEX:", count)
             count += 1
 
 

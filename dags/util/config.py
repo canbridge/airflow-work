@@ -24,3 +24,7 @@ DAG_OPTIONS = {
     "mongo_db": "data",
 
 }
+
+PARSER_OPTIONS = {
+    'address': "10.0.30.37",
+}
