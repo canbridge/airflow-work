@@ -1,2 +1,5 @@
 logs
 airflow-webserver.pid
+*.log
+*.pyc
+*.zip

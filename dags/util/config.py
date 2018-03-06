@@ -15,7 +15,7 @@ MONGO_OPTIONS = {
 }
 
 DAG_OPTIONS = {
-    "url": "http://10.0.30.6:8080/admin/rest_api/api",
+    "url": "http://localhost:8080/admin/rest_api/api",
     "parse": {"count": 50000},
     "mysql_resume_path_table": 'resumes_path',
 

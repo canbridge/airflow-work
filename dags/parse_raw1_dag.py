@@ -5,6 +5,7 @@ airflow trigger_dag --conf '{"min_id": "20", "max_id": "30"}' parser
 '''
 
 import datetime
+import os
 import requests
 import json
 import base64
@@ -40,7 +41,7 @@ while decrement:
 
 serverAddress = config.PARSER_OPTIONS["address"]
 
-dag = DAG("parse_raw2_resume",
+dag = DAG("parse_raw1_resume",
           default_args={"owner": "ubuntu",
                         "start_date": airflow.utils.dates.days_ago(1)},
           schedule_interval=None,
@@ -73,62 +74,58 @@ def content_parse(content):
     else:
         return {}
 
+def upload_to_cos(filepath):
+    result = {}
+    a = filepath.split('/')
+    d = a[6:9]
+    p = '__'.join(a[9:])
+    kuozhan = p.split('.')[-1]
+    cos_d = '/'.join(d)
+    cos_d = 'origin_tmp/' + cos_d
+    zp = zlib.compress(p.encode('utf-8'))
+    t = base64.b64encode(zp)
+    t = t.decode("utf-8")
+    m = ''.join(t.split("/"))
+    cos_path = cos_d + '/' + m + '.' + kuozhan
+    cmd = "coscmd upload -r {}  {}".format(filepath, cos_path)
+    os.system(cmd)
+    print(cmd)
+    return cos_path
+
+
 
 def itera_parse(fname):
     mongodb = db.mongo_client.data
-    coll = mongodb["mongo_resume_table_test"]
+    coll = mongodb["pdf_orgin"]
     coll.remove({"fname": fname})
 
     count = 1
-    error_count = 0
     with open(fname, 'r') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
 
-            print(row)
             d_id = row[0]
             pdf_path = row[2]
-            content = zlib.decompress(base64.b64decode(row[1]))
-            content = base64.b64encode(content).decode('ascii')
-
-            print(d_id, pdf_path, content)
-            parsed = content_parse(content)
-            resume = parsed.get("result", {})
-            if resume:
-                change_key(resume)
-                resume['fname'] = fname
-                resume['line_index'] = count
-                resume['d_id'] = d_id
-                resume['pdf_path'] = pdf_path
-                coll.insert_one(resume)
-
-
-
             try:
-                d_id = row[0]
-                pdf_path = row[2]
-                content = zlib.decompress(base64.b64decode(row[1]))
-                content = base64.b64encode(content).decode('ascii')
 
-                print(d_id, pdf_path, content)
-                parsed = content_parse(content)
-                resume = parsed.get("result", {})
-                if resume:
-                    change_key(resume)
+                if '.pdf' in pdf_path:
+                    resume = {}
+                    pdf_path = '/home/ubuntu/cfs-m/data/uncompress/' + pdf_path
+                    cos_path = upload_to_cos(pdf_path)
                     resume['fname'] = fname
-                    resume['line_index'] = count
                     resume['d_id'] = d_id
-                    resume['pdf_path'] = pdf_path
+                    resume['cos'] = cos_path
+                    resume['origin'] = pdf_path
                     coll.insert_one(resume)
+
             except Exception as e:
-                error_count += 1
-                print("ERROR", "FNAME:", fname, "ERROR:", e, "LINE_INDEX:", count)
+                print("ERROR", "FNAME:", fname, "ERROR:", e, "PDFPATH:", pdf_path)
             count += 1
 
 
 def _parse(ds, **kwargs):
-    # fname = kwargs['dag_run'].conf['fname']
-    fname = '/home/ubuntu/data/raw2/part-r-00117-d13cfcb7-8d60-45c1-b4a4-657a6a7b3217.csv'
+    fname = kwargs['dag_run'].conf['fname']
+    # fname = '/home/ubuntu/raw1/track01-6095.csv'
     # fname = "/home/ubuntu/data/raw2/part-r-00000-d13cfcb7-8d60-45c1-b4a4-657a6a7b3217.csv"
     itera_parse(fname)
 
